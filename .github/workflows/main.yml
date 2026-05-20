@@ -5,18 +5,12 @@ on:
 
 jobs:
   build:
-    runs-on: macos-14 # Specifically use standard M-series Mac runners
+    runs-on: macos-14
     permissions:
       contents: read
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          submodules: 'recursive' # Fetch hidden submodules cleanly
-
-      - name: Fix Safe Directory Permissions
-        run: |
-          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+        uses: actions/checkout@v4 # Standard checkout without forcing broken submodules
 
       - name: Setup Java
         uses: actions/setup-java@v4
@@ -31,7 +25,6 @@ jobs:
 
       - name: Search and Package IPA
         run: |
-          # Finds the compiled app file wherever the script drops it
           APP_PATH=$(find . -name "*.app" -type d | head -n 1)
           if [ -z "$APP_PATH" ]; then
             echo "Error: No compiled build bundle found."
