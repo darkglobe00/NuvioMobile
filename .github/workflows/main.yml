@@ -1,30 +1,44 @@
 name: Build iOS IPA
 
 on:
-  workflow_dispatch: # Allows you to trigger this manually
+  workflow_dispatch:
 
 jobs:
   build:
-    runs-on: macos-latest
+    runs-on: macos-14 # Specifically use standard M-series Mac runners
+    permissions:
+      contents: read
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          submodules: 'recursive' # Fetch hidden submodules cleanly
 
-      - name: Setup Java (for Kotlin Multiplatform if needed)
+      - name: Fix Safe Directory Permissions
+        run: |
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
+      - name: Setup Java
         uses: actions/setup-java@v4
         with:
           distribution: 'zulu'
           java-version: '17'
 
-      - name: Build Xcode Workspace
+      - name: Run Official Build Script
         run: |
-          cd iosApp
-          xcodebuild -workspace iosApp.xcworkspace -scheme iosApp -configuration Release -sdk iphoneos clean build CODE_SIGNING_ALLOWED=NO
+          chmod +x ./scripts/build-distribution.sh
+          ./scripts/build-distribution.sh
 
-      - name: Package into IPA
+      - name: Search and Package IPA
         run: |
+          # Finds the compiled app file wherever the script drops it
+          APP_PATH=$(find . -name "*.app" -type d | head -n 1)
+          if [ -z "$APP_PATH" ]; then
+            echo "Error: No compiled build bundle found."
+            exit 1
+          fi
           mkdir -p Payload
-          cp -R iosApp/build/Release-iphoneos/iosApp.app Payload/
+          cp -R "$APP_PATH" Payload/
           zip -r Nuvio.ipa Payload
           rm -rf Payload
 
