@@ -6,11 +6,11 @@ on:
 jobs:
   build:
     runs-on: macos-14
-    permissions:
-      contents: read
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4 # Standard checkout without forcing broken submodules
+        uses: actions/checkout@v4
+        with:
+          submodules: false  # Completely ignore submodules
 
       - name: Setup Java
         uses: actions/setup-java@v4
@@ -18,20 +18,37 @@ jobs:
           distribution: 'zulu'
           java-version: '17'
 
-      - name: Run Official Build Script
+      - name: Manual Xcode Compilation
         run: |
-          chmod +x ./scripts/build-distribution.sh
-          ./scripts/build-distribution.sh
+          # Navigate straight to the iOS source folder
+          cd iosApp
+          
+          # Force build using standard xcode tools without signing requirements
+          xcodebuild clean build \
+            -project iosApp.xcodeproj \
+            -scheme iosApp \
+            -sdk iphoneos \
+            -configuration Release \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO
 
-      - name: Search and Package IPA
+      - name: Package App Bundle into IPA
         run: |
-          APP_PATH=$(find . -name "*.app" -type d | head -n 1)
-          if [ -z "$APP_PATH" ]; then
-            echo "Error: No compiled build bundle found."
+          mkdir -p Payload
+          # Find the compiled .app file and copy it over
+          APP_DIR=$(find ~/Library/Developer/Xcode/DerivedData -name "iosApp.app" -type d | head -n 1)
+          
+          if [ -z "$APP_DIR" ]; then
+            # Fallback check inside the local folder
+            APP_DIR=$(find . -name "*.app" -type d | head -n 1)
+          fi
+          
+          if [ -z "$APP_DIR" ]; then
+            echo "Error: Could not locate compiled .app file."
             exit 1
           fi
-          mkdir -p Payload
-          cp -R "$APP_PATH" Payload/
+          
+          cp -R "$APP_DIR" Payload/
           zip -r Nuvio.ipa Payload
           rm -rf Payload
 
